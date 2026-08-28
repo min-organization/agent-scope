@@ -1,0 +1,13 @@
+# 运行时产物(脚本 deploy/agent-scope.sh 自举生成, 不入库)
+run/
+backend/agent-scope
+# 临时/验证用二进制(手工 go build -o agent-scope-xxx 产出, 如 -new / -verify)
+backend/agent-scope-*
+backend/agent-scope.yaml
+data/
+# 打包产物(package.sh 生成)
+output/
+# 前端构建产物(Vite 生成, 不入库)
+backend/internal/server/web/dist/
+# 前端依赖(本地安装, 不入库)
+frontend/node_modules/

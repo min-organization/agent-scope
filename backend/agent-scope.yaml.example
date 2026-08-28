@@ -1,0 +1,69 @@
+# agent-mon 配置样例
+# 运行: ./agent-mon -config agent-mon.yaml -db data/agent-mon.db -addr :8090
+
+server:
+  addr: ":8090"          # Web 监听地址
+
+collect:
+  interval: 2             # 采集间隔(秒)
+  match:                 # 代理可执行名关键词(进程级匹配)
+    - claude
+    - codex
+    - copilot
+    - aider
+    - opencode
+    - gemini
+  pty_ring: 200           # pty 末行 ring buffer 行数(进程级尽力读取用)
+  idle_seconds: 5         # 进程级: 无输出静止多久判 blocked(秒)
+
+# waiting 启发式关键词(进程级 pty 末行匹配; transcript 路径不依赖此)
+waiting_keywords:
+  - "Y/n"
+  - "yes/no"
+  - "Proceed?"
+  - "Allow"
+  - "[Y/n]"
+  - "confirm"
+  - "⏎"
+  - "do you want"
+  - "permission"
+  - "approve"
+
+# 行为采集(全 eBPF 抓取进程树 syscall: execve/openat/connect/write)
+# 仅采集元数据(命令/文件名 basename、域名:端口), 绝不采集文件内容或 pty 原始字节。
+behavior:
+  capture: metadata        # off=不采集行为(仅 pty 文本); metadata=采集元数据(默认); full=保留原始(含更多, 警告)
+  edit_ext:                # 视为"编辑"的源码后缀
+    - ".go"
+    - ".py"
+    - ".ts"
+    - ".tsx"
+    - ".js"
+    - ".jsx"
+    - ".rs"
+    - ".java"
+    - ".c"
+    - ".cpp"
+    - ".h"
+    - ".rb"
+    - ".php"
+    - ".vue"
+    - ".md"
+  llm_hosts:               # 视为 LLM API 的主机关键字(连上且无本地活动 -> 推理中)
+    - "openai.com"
+    - "anthropic.com"
+    - "copilot"
+    - "codex"
+    - "googleapis.com"
+    - "ai.google"
+    - "deepseek.com"
+    - "moonshot"
+    - "qwen"
+    - "baidu.com"
+
+# 说明:
+# - Claude Code / Codex: 优先读 transcript/session JSONL(零竞争、精确, 解决思考态漏判)
+#   路径 ~/.claude/projects/*/transcript.jsonl 与 ~/.codex/sessions/*.jsonl
+# - Copilot / aider 等无原生状态源: 全 eBPF 行为采集(execve/openat/connect) + 进程级,
+#   可识别"执行命令/编辑文件/调用 LLM/推理中"等真实工作状态。
+# - 不依赖 tmux/screen 等中间服务; 不存全量终端流(仅末行摘要 + 行为元数据)

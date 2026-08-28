@@ -1,0 +1,58 @@
+name: Release
+
+# 打 tag (v*) 时自动构建并发布到 GitHub Release
+# 参考 tlog-web 模式: 使用 actions/setup-go 原生交叉编译(不依赖 Docker),
+# 规避容器内 go build 的 VCS stamping 失败。
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write   # 允许 action-gh-release 上传产物到 Release
+
+jobs:
+  release:
+    name: Build & publish binaries
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { goos: linux, goarch: amd64 }
+          - { goos: linux, goarch: arm64 }
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Frontend build
+        working-directory: frontend
+        run: npm ci --legacy-peer-deps && npm run build
+        # vite 已配置 outDir 指向 ../backend/internal/server/web/dist, 供 //go:embed 使用
+
+      - name: Build binary
+        working-directory: backend
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+        run: |
+          go build -buildvcs=false -ldflags="-s -w" \
+            -o "../agent-scope-${{ matrix.goos }}-${{ matrix.goarch }}" .
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: agent-scope-${{ matrix.goos }}-${{ matrix.goarch }}
